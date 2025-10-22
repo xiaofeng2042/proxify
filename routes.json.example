@@ -10,7 +10,7 @@
       "name": "Azure",
       "description": "Azure OpenAI Service Endpoint",
       "path": "/azure",
-      "target": "https://poixe.openai.azure.com"
+      "target": "https://your-node.openai.azure.com"
     },
     {
       "name": "DeepSeek",
