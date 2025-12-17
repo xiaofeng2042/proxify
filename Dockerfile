@@ -1,7 +1,7 @@
 # ========================================
 # Stage 1: Build Frontend with Node
 # ========================================
-FROM node:22-alpine AS frontend-builder
+FROM node:22-alpine3.22 AS frontend-builder
 
 # Set work directory
 WORKDIR /app/web
@@ -16,7 +16,7 @@ RUN npm run build
 # ========================================
 # Stage 2: Build Backend with Go
 # ========================================
-FROM golang:1.24-alpine AS backend-builder
+FROM golang:1.24-alpine3.22 AS backend-builder
 
 # Install dependencies
 # RUN apk add --no-cache git

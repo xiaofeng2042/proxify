@@ -41,11 +41,25 @@ jobs:
         with:
           node-version: '22'
 
-      # ---- run build.sh
-      - name: Run build.sh
+      # ---- run build.sh (amd64 + arm64)
+      - name: Build linux/amd64 and linux/arm64
         run: |
           chmod +x ./build.sh
+
+          echo "[INFO] Build amd64..."
+          export GOOS=linux
+          export GOARCH=amd64
+          export CGO_ENABLED=0
           ./build.sh
+          cp -f "./bin/${APP_NAME}" "./bin/${APP_NAME}-linux-amd64"
+
+          echo "[INFO] Build arm64..."
+          export GOARCH=arm64
+          ./build.sh
+          cp -f "./bin/${APP_NAME}" "./bin/${APP_NAME}-linux-arm64"
+
+          # Restore default deploy binary name to amd64 (deploy.sh 继续用它)
+          cp -f "./bin/${APP_NAME}-linux-amd64" "./bin/${APP_NAME}"
 
       # ---- ensure build output
       - name: Verify build output
@@ -63,9 +77,13 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
-          files: ./bin/${{ env.APP_NAME }}
+          files: |
+            ./bin/${{ env.APP_NAME }}
+            ./bin/${{ env.APP_NAME }}-linux-amd64
+            ./bin/${{ env.APP_NAME }}-linux-arm64
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
 
 # --------------------------------------------------------------- Deploy
   deploy:
