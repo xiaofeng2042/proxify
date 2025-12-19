@@ -22,7 +22,10 @@ func GinRequestLogger() gin.HandlerFunc {
 		latency := time.Since(start)
 		status := c.Writer.Status()
 		method := c.Request.Method
-		path := c.GetString(ctx.SubPath)
+
+		// using init url path
+		path := c.Request.URL.Path
+
 		clientIP := c.ClientIP()
 		targetURL := c.GetString(ctx.TargetURL)
 

@@ -148,6 +148,14 @@ STREAM_SMOOTHING_ENABLED=true
 
 # 启用 SSE 心跳机制（防止长连接超时）
 STREAM_HEARTBEAT_ENABLED=true
+
+# IP 白名单（可选）
+# 支持单个 IP、CIDR 网段，多个规则使用英文逗号分隔
+AUTH_IP_WHITELIST="127.0.0.1,10.0.0.0/8,192.168.1.0/24,::1"
+
+# Token 鉴权（可选）
+AUTH_TOKEN_HEADER="X-API-Token"
+AUTH_TOKEN_KEY="your-super-secret-token"
 ```
 
 > 💡 **提示：**
@@ -155,6 +163,8 @@ STREAM_HEARTBEAT_ENABLED=true
 > - 当您使用 Docker 运行 Proxify 时，必须将 .env 文件挂载进容器内部路径 /app/.env；
 >
 > - 如果您直接运行本地可执行文件（不使用 Docker），只需保证 .env 与程序位于同一目录即可。
+>
+> - 所有标记为「可选」的配置项（如 `GITHUB_TOKEN`、`AUTH_IP_WHITELIST`、`AUTH_TOKEN_*`），**留空或未设置时将不会启用对应功能**。
 
 ---
 
@@ -177,7 +187,10 @@ cp routes.json.example routes.json
       "name": "OpenAI",
       "description": "OpenAI Official API Endpoint",
       "path": "/openai",
-      "target": "https://api.openai.com/"
+      "target": "https://api.openai.com/",
+      "model_map": {
+        "gpt-4o": "gpt-4o-2024-11-20"
+      }
     },
     {
       "name": "DeepSeek",
@@ -207,6 +220,8 @@ cp routes.json.example routes.json
 > - 您可在此文件中自由增减代理路径；
 >
 > - 修改后无需重启（路由文件自动热加载）。
+>
+> - 支持在路由级别对请求体中的 `model` 字段进行重写，常用于模型别名、自动降级或跨平台兼容。
 
 ---
 

@@ -10,6 +10,9 @@ type Route struct {
 	Target      string `json:"target"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
+
+	// model mapping (optional)
+	ModelMap map[string]string `json:"model_map,omitempty"`
 }
 
 type RoutesConfig struct {

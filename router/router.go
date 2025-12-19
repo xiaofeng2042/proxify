@@ -13,6 +13,8 @@ func SetRoutes(r *gin.Engine) {
 	r.Use(middleware.CORS())
 	r.Use(middleware.GinRequestLogger())
 	r.Use(middleware.Extractor())
+	r.Use(middleware.Auth())
+	r.Use(middleware.ModelRewrite())
 
 	// ==== routes.json ====
 	apiGroup := r.Group("/api")

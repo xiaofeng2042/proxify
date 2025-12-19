@@ -9,4 +9,5 @@ const (
 	TargetEndpoint   = "target_endpoint"     // like https://api.openai.com
 	TargetURL        = "target_url"          // like https://api.openai.com/v1/chat/completions
 	Proxified        = "proxified"           // bool, whether the request has been proxified
+	RouteConfig      = "route_config"
 )

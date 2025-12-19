@@ -28,10 +28,16 @@ func Extractor() gin.HandlerFunc {
 		// check if route exists in routes.json
 		cfg := watcher.GetRoutes()
 		found := false
-		for _, r := range cfg.Routes {
+		for i := range cfg.Routes {
+			r := &cfg.Routes[i]
+
 			if r.Path == "/"+top {
 				found = true
 				c.Set(ctx.TargetEndpoint, r.Target)
+
+				// store matched route config
+				c.Set(ctx.RouteConfig, r)
+
 				break
 			}
 		}

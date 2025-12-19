@@ -154,12 +154,23 @@ GITHUB_TOKEN=ghp_xxxx
 # Stream optimization
 STREAM_SMOOTHING_ENABLED=true
 STREAM_HEARTBEAT_ENABLED=true
+
+# IP whitelist (optional)
+# Supports single IP, CIDR notation, and multiple entries separated by commas
+AUTH_IP_WHITELIST="127.0.0.1,10.0.0.0/8,192.168.1.0/24,::1"
+
+# Token-based authentication (optional)
+AUTH_TOKEN_HEADER="X-API-Token"
+AUTH_TOKEN_KEY="your-super-secret-token"
 ```
 
 > 💡 **Tips:**
 >
 > * For Docker, mount `.env` into `/app/.env` inside the container.
+> 
 > * For local binary, keep `.env` in the same directory as the executable.
+>
+> * All configuration items marked as “optional” (such as `GITHUB_TOKEN`, `AUTH_IP_WHITELIST`, `AUTH_TOKEN_*`) are **disabled when left empty or unset**.
 
 ---
 
@@ -178,7 +189,10 @@ Example:
       "name": "OpenAI",
       "description": "OpenAI Official API Endpoint",
       "path": "/openai",
-      "target": "https://api.openai.com/"
+      "target": "https://api.openai.com/",
+      "model_map": {
+        "gpt-4o": "gpt-4o-2024-11-20"
+      }
     },
     {
       "name": "DeepSeek",
@@ -202,7 +216,9 @@ Example:
 }
 ```
 
-> 💡 Routes can be modified freely — changes are automatically hot-reloaded without restarting the service.
+> - Routes can be modified freely — changes are automatically hot-reloaded without restarting the service.
+>
+> - Supports route-level rewriting of the `model` field in the request body, commonly used for model aliases, automatic fallback, or cross-platform compatibility.
 
 ---
 
