@@ -4,7 +4,10 @@
       "name": "OpenAI",
       "description": "OpenAI Official API Endpoint",
       "path": "/openai",
-      "target": "https://api.openai.com/"
+      "target": "https://api.openai.com/",
+      "model_map": {
+        "gpt-4o": "gpt-4o-mini"
+      }
     },
     {
       "name": "Azure",
