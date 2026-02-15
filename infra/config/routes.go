@@ -13,6 +13,10 @@ type Route struct {
 
 	// model mapping (optional)
 	ModelMap map[string]string `json:"model_map,omitempty"`
+
+	// API format transform (optional)
+	// "responses_to_chat" - converts OpenAI Responses API to Chat Completions API
+	Transform string `json:"transform,omitempty"`
 }
 
 type RoutesConfig struct {

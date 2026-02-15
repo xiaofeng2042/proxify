@@ -14,7 +14,9 @@ func SetRoutes(r *gin.Engine) {
 	r.Use(middleware.GinRequestLogger())
 	r.Use(middleware.Extractor())
 	r.Use(middleware.Auth())
+	r.Use(middleware.ResponsesToChat())  // Convert Responses API to Chat Completions (request)
 	r.Use(middleware.ModelRewrite())
+	r.Use(middleware.ResponseTransform()) // Convert Chat Completions to Responses API (response)
 
 	// ==== routes.json ====
 	apiGroup := r.Group("/api")
