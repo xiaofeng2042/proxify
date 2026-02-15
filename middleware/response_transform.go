@@ -22,8 +22,9 @@ type ChatCompletionStreamChunk struct {
 	Choices []struct {
 		Index int `json:"index"`
 		Delta struct {
-			Role    string `json:"role,omitempty"`
-			Content string `json:"content,omitempty"`
+			Role             string `json:"role,omitempty"`
+			Content          string `json:"content,omitempty"`
+			ReasoningContent string `json:"reasoning_content,omitempty"` // Zhipu GLM reasoning
 		} `json:"delta"`
 		FinishReason *string `json:"finish_reason"`
 	} `json:"choices"`
@@ -59,11 +60,14 @@ func ResponseTransform() gin.HandlerFunc {
 
 type responseProxy struct {
 	gin.ResponseWriter
-	transform      bool
-	initialized    bool // whether we've sent response.created event
-	responseID     string
-	itemID         string // message item ID for delta events
-	sequenceNumber int    // sequence counter for all events
+	transform        bool
+	initialized      bool   // whether we've sent response.created event
+	responseID       string
+	itemID           string // message item ID for delta events
+	sequenceNumber   int    // sequence counter for all events
+	contentPartAdded bool   // whether we've added content_part for main output
+	accumulatedText  string // accumulated text content for response.output_text.done
+	completed        bool   // whether we've already sent response.completed event
 }
 
 func (p *responseProxy) Write(data []byte) (int, error) {
@@ -120,8 +124,13 @@ func (p *responseProxy) transformSSE(data []byte) (int, error) {
 		jsonStr := strings.TrimPrefix(line, "data: ")
 		logger.Infof("transformSSE jsonStr: %s", jsonStr)
 
-		// Handle [DONE] marker
+		// Handle [DONE] marker - only emit if we haven't already sent response.completed
 		if jsonStr == "[DONE]" {
+			// If we already sent response.completed via finish_reason, skip this
+			if p.completed {
+				logger.Infof("transformSSE: skipping [DONE] marker, already sent response.completed")
+				continue
+			}
 			// Convert to Responses API done format
 			// SSE format with event type
 			doneEvent := "event: response.completed\ndata: {\"type\":\"response.completed\"}\n\n"
@@ -211,16 +220,12 @@ func (p *responseProxy) nextSequenceNumber() int {
 // convertChunkToResponsesEvents converts a Chat Completions chunk to Responses API events
 // isFirstChunk indicates if this is the first chunk (to emit response.created)
 func (p *responseProxy) convertChunkToResponsesEvents(ccChunk *ChatCompletionStreamChunk, isFirstChunk bool) []ResponsesAPIEvent {
-	if len(ccChunk.Choices) == 0 {
-		return nil
-	}
-
-	choice := ccChunk.Choices[0]
 	var events []ResponsesAPIEvent
 
-	// Only emit response.created and output_item.added on the first chunk
+	// CRITICAL: Always emit setup events on first chunk, even if no choices!
+	// This fixes the "OutputTextDelta without active item" error from Codex client
 	if isFirstChunk {
-		// Generate a message item ID for this response
+		// Generate message item ID
 		p.itemID = "msg_" + ccChunk.ID
 
 		// 1. Emit response.created event
@@ -238,7 +243,7 @@ func (p *responseProxy) convertChunkToResponsesEvents(ccChunk *ChatCompletionStr
 			},
 		})
 
-		// 2. Emit response.in_progress event (added per OpenAI docs)
+		// 2. Emit response.in_progress event
 		events = append(events, ResponsesAPIEvent{
 			Type: "response.in_progress",
 			Data: map[string]interface{}{
@@ -270,7 +275,7 @@ func (p *responseProxy) convertChunkToResponsesEvents(ccChunk *ChatCompletionStr
 			},
 		})
 
-		// 4. Emit response.content_part.added (required before output_text.delta!)
+		// 4. Emit response.content_part.added
 		events = append(events, ResponsesAPIEvent{
 			Type: "response.content_part.added",
 			Data: map[string]interface{}{
@@ -286,10 +291,22 @@ func (p *responseProxy) convertChunkToResponsesEvents(ccChunk *ChatCompletionStr
 				},
 			},
 		})
+
+		p.contentPartAdded = true
 	}
 
-	// Handle content delta
+	// If no choices in this chunk, return just the setup events
+	if len(ccChunk.Choices) == 0 {
+		return events
+	}
+
+	choice := ccChunk.Choices[0]
+
+	// Handle content delta - skip reasoning_content, only process actual content
 	if choice.Delta.Content != "" {
+		// Accumulate text for the done event
+		p.accumulatedText += choice.Delta.Content
+
 		events = append(events, ResponsesAPIEvent{
 			Type: "response.output_text.delta",
 			Data: map[string]interface{}{
@@ -305,7 +322,7 @@ func (p *responseProxy) convertChunkToResponsesEvents(ccChunk *ChatCompletionStr
 
 	// Handle finish reason
 	if choice.FinishReason != nil {
-		// Emit response.content_part.done first
+		// Emit response.content_part.done with full text
 		events = append(events, ResponsesAPIEvent{
 			Type: "response.content_part.done",
 			Data: map[string]interface{}{
@@ -316,13 +333,13 @@ func (p *responseProxy) convertChunkToResponsesEvents(ccChunk *ChatCompletionStr
 				"content_index":  0,
 				"part": map[string]interface{}{
 					"type":        "output_text",
-					"text":        "",
+					"text":        p.accumulatedText,
 					"annotations": []interface{}{},
 				},
 			},
 		})
 
-		// Emit response.output_text.done
+		// Emit response.output_text.done with full text
 		events = append(events, ResponsesAPIEvent{
 			Type: "response.output_text.done",
 			Data: map[string]interface{}{
@@ -331,10 +348,11 @@ func (p *responseProxy) convertChunkToResponsesEvents(ccChunk *ChatCompletionStr
 				"item_id":        p.itemID,
 				"output_index":   0,
 				"content_index":  0,
+				"text":           p.accumulatedText,
 			},
 		})
 
-		// Emit response.output_item.done
+		// Emit response.output_item.done with full content
 		events = append(events, ResponsesAPIEvent{
 			Type: "response.output_item.done",
 			Data: map[string]interface{}{
@@ -342,11 +360,17 @@ func (p *responseProxy) convertChunkToResponsesEvents(ccChunk *ChatCompletionStr
 				"sequence_number": p.nextSequenceNumber(),
 				"output_index":   0,
 				"item": map[string]interface{}{
-					"id":      p.itemID,
-					"type":    "message",
-					"role":    "assistant",
-					"status":  "completed",
-					"content": []interface{}{},
+					"id":     p.itemID,
+					"type":   "message",
+					"role":   "assistant",
+					"status": "completed",
+					"content": []interface{}{
+						map[string]interface{}{
+							"type":        "output_text",
+							"text":        p.accumulatedText,
+							"annotations": []interface{}{},
+						},
+					},
 				},
 			},
 		})
@@ -365,6 +389,9 @@ func (p *responseProxy) convertChunkToResponsesEvents(ccChunk *ChatCompletionStr
 				},
 			},
 		})
+
+		// Mark as completed so we don't send duplicate response.completed on [DONE]
+		p.completed = true
 	}
 
 	return events
